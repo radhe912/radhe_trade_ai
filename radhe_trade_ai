@@ -1,0 +1,56 @@
+# radhe_ai.py
+import streamlit as st
+import yfinance as yf
+import pandas as pd
+import ta
+from datetime import datetime, timedelta
+
+# Page Setup
+st.set_page_config(page_title="Radhe Trade Brain AI", layout="centered")
+st.title("📈 Radhe Trade Brain AI - V1")
+st.markdown("""
+AI-powered stock analysis tool using RSI, MACD, MA50, MA200 indicators.
+""")
+
+# Inputs
+symbol = st.text_input("Enter Stock Symbol (e.g., TCS.NS):", "RELIANCE.NS")
+start_date = st.date_input("Start Date", datetime.today() - timedelta(days=180))
+end_date = st.date_input("End Date", datetime.today())
+
+if st.button("🔍 Analyze"):
+    try:
+        data = yf.download(symbol, start=start_date, end=end_date)
+
+        if data.empty:
+            st.error("No data found. Check the symbol.")
+        else:
+            st.success("Data Loaded Successfully!")
+            st.line_chart(data['Close'], use_container_width=True)
+
+            # Indicators using ta
+            data['RSI'] = ta.momentum.RSIIndicator(close=data['Close']).rsi()
+            macd = ta.trend.MACD(close=data['Close'])
+            data['MACD'] = macd.macd()
+            data['MACD_signal'] = macd.macd_signal()
+            data['MA50'] = ta.trend.SMAIndicator(close=data['Close'], window=50).sma_indicator()
+            data['MA200'] = ta.trend.SMAIndicator(close=data['Close'], window=200).sma_indicator()
+
+            latest = data.iloc[-1]
+
+            st.subheader("📊 Indicator Values")
+            st.write(f"**RSI:** {latest['RSI']:.2f}")
+            st.write(f"**MACD:** {latest['MACD']:.2f} | Signal: {latest['MACD_signal']:.2f}")
+            st.write(f"**MA50:** {latest['MA50']:.2f} | **MA200:** {latest['MA200']:.2f}")
+
+            # Signal Logic
+            st.subheader("🔔 Signal")
+            signal = "Hold"
+            if latest['RSI'] < 30 and latest['MACD'] > latest['MACD_signal'] and latest['Close'] > latest['MA50']:
+                signal = "Strong Buy"
+            elif latest['RSI'] > 70 and latest['MACD'] < latest['MACD_signal'] and latest['Close'] < latest['MA50']:
+                signal = "Strong Sell"
+
+            st.markdown(f"### 📌 Recommendation: **{signal}**")
+
+    except Exception as e:
+        st.error(f"Error: {str(e)}")
